@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
-#   This little script converts SMAP HDF5 files in ESRI shapefile
-#   by exctracting only soil moisture values. 
+#   This little script converts SMAP L3 HDF5 files in ESRI shapefile
+#   by exctracting only soil moisture values.
 #
-#   Copyright (C) 2016 Francesco P. Lovergine <francesco.lovergine@cnr.it>
+#   Copyright (C) 2016-2024 Francesco P. Lovergine <francesco.lovergine@cnr.it>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -28,21 +28,33 @@ import fiona
 from fiona.crs import from_epsg
 
 prog = __file__
-if len(sys.argv) < 2:
-    print 'usage %s file ...' % __file__
+if len(sys.argv) < 3 or sys.argv[1] not in ['am', 'pm']:
+    print('usage %s [am|pm] file ...' % __file__)
     sys.exit(0)
 
-files = glob.glob(sys.argv[1])
+period = sys.argv[1]
+
+suffix = period.upper()
+varsuffix = ''
+if period == 'pm':
+    varsuffix = '_' + period
+
+files = glob.glob(sys.argv[2])
 for f in files:
-    print f
+    print(f)
     with h5py.File(f) as h5f:
-        root = h5f.get('Soil_Moisture_Retrieval_Data')
-        lats = h5f.get('Soil_Moisture_Retrieval_Data/latitude')
+        root = h5f.get('Soil_Moisture_Retrieval_Data_'+suffix)
+        lats = h5f.get('Soil_Moisture_Retrieval_Data_%s/latitude%s' % (suffix, varsuffix))
         np_lats = np.array(lats)
-        longs = h5f.get('Soil_Moisture_Retrieval_Data/longitude')
+        longs = h5f.get('Soil_Moisture_Retrieval_Data_%s/longitude%s' % (suffix, varsuffix))
         np_longs = np.array(longs)
-        sm = h5f.get('Soil_Moisture_Retrieval_Data/soil_moisture')
+        sm = h5f.get('Soil_Moisture_Retrieval_Data_%s/soil_moisture%s' % (suffix, varsuffix))
         np_sm = np.array(sm)
+        sm_err = h5f.get('Soil_Moisture_Retrieval_Data_%s/soil_moisture_error%s' % (suffix, varsuffix))
+        np_sm_err = np.array(sm_err)
+        flag = h5f.get('Soil_Moisture_Retrieval_Data_%s/retrieval_qual_flag_dca%s' % (suffix, varsuffix))
+        np_flag = np.array(flag)
+
         (base,ext) = os.path.splitext(os.path.basename(f))
         outshp = base + '.shp'
         with fiona.open(outshp,
@@ -52,8 +64,8 @@ for f in files:
                 schema={'geometry' : 'Point',
                         'properties' : {'soil_moist' : 'float'}}
                 ) as dst:
-            for lat, lon, s in np.nditer([np_lats,np_longs,np_sm]):
-                if s != -9999:
+            for lat, lon, s, e, f in np.nditer([np_lats,np_longs,np_sm,np_sm_err,np_flag]):
+                if s != -9999 and ~(f & 1):
                     geom = {'type' : 'Point', 'coordinates' : [lon, lat]}
                     feature = {'type': 'Feature', 'geometry' : geom, 'properties'
                             : {'soil_moist' : float(s)}}
