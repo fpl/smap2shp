@@ -50,6 +50,8 @@ for f in files:
         np_longs = np.array(longs)
         sm = h5f.get('Soil_Moisture_Retrieval_Data_%s/soil_moisture%s' % (suffix, varsuffix))
         np_sm = np.array(sm)
+        sm_dca = h5f.get('Soil_Moisture_Retrieval_Data_%s/soil_moisture_dca%s' % (suffix, varsuffix))
+        np_sm_dca = np.array(sm_dca)
         sm_err = h5f.get('Soil_Moisture_Retrieval_Data_%s/soil_moisture_error%s' % (suffix, varsuffix))
         np_sm_err = np.array(sm_err)
         flag = h5f.get('Soil_Moisture_Retrieval_Data_%s/retrieval_qual_flag_dca%s' % (suffix, varsuffix))
@@ -62,11 +64,11 @@ for f in files:
                 crs=from_epsg(4326),
                 driver='ESRI Shapefile',
                 schema={'geometry' : 'Point',
-                        'properties' : {'soil_moist' : 'float'}}
+                        'properties' : {'soil_moist' : 'float', 'sm_dca' : 'float', 'sm_err' : 'float'}}
                 ) as dst:
-            for lat, lon, s, e, f in np.nditer([np_lats,np_longs,np_sm,np_sm_err,np_flag]):
+            for lat, lon, s, d, e, f in np.nditer([np_lats,np_longs,np_sm,np_sm_dca,np_sm_err,np_flag]):
                 if s != -9999 and ~(f & 1):
                     geom = {'type' : 'Point', 'coordinates' : [lon, lat]}
                     feature = {'type': 'Feature', 'geometry' : geom, 'properties'
-                            : {'soil_moist' : float(s)}}
+                               : {'soil_moist' : float(s), 'sm_dca': float(d), 'sm_err': float(e)}}
                     dst.write(feature)
